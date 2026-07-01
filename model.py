@@ -27,8 +27,8 @@ np.random.seed(0)
 # equally into s2/s3), 19% Proficient, 7% Advanced.
 NAEP_TARGET = np.array([0.38, 0.18, 0.18, 0.19, 0.07])
 
-ALPHA = {'income': 0.0008, 'perpupil': 0.0005, 'ratio': -0.002}
-C0    = {'income': 50.0,   'perpupil': 15.591, 'ratio': 16.0}   # $15,591 = FY2022 mean
+ALPHA = {'income': 0.0008, 'perpupil': 0.0005}
+C0    = {'income': 50.0,   'perpupil': 15.591}   # $15,591 = FY2022 mean
 TUTORING_BOOST = 0.05
 RHO, DELTA = 0.7, 0.4
 
@@ -74,26 +74,28 @@ def calibrate(target=NAEP_TARGET):
     return P, stationary(P), np.max(np.abs(stationary(P) - target))
 
 
-def apply_covariates(P_base, income, perpupil, ratio=16):
-    """Income + funding shift on adjacent upward transitions (Eq. 2)."""
+def apply_covariates(P_base, income, perpupil):
+    """Income + funding shift on adjacent upward transitions (Eq. 2): the shift
+    is moved between p_{i,i+1} and p_ii, then every entry is floored at 0.001 and
+    the row renormalized (steps iii-iv). The 0.001 floor is the only imposed bound."""
     shift = (ALPHA['income']   * (income   - C0['income']) +
-             ALPHA['perpupil'] * (perpupil - C0['perpupil']) +
-             ALPHA['ratio']    * (ratio    - C0['ratio']))
+             ALPHA['perpupil'] * (perpupil - C0['perpupil']))
     P = P_base.copy().astype(float)
     for i in range(4):
-        P[i, i+1] = np.clip(P[i, i+1] + shift, 0.001, 0.999)
-        P[i, i]   = np.clip(P[i, i]   - shift, 0.001, 0.999)
+        P[i, i+1] = P[i, i+1] + shift
+        P[i, i]   = P[i, i]   - shift
         P[i, :] = np.maximum(P[i, :], 0.001)
         P[i, :] /= P[i, :].sum()
     return P
 
 
 def apply_tutoring(P, boost=TUTORING_BOOST):
-    """+boost on s1->s2 and s2->s3, absorbed from the diagonal."""
+    """+boost on s1->s2 and s2->s3, absorbed from the diagonal; floor at 0.001
+    and renormalize."""
     P = P.copy().astype(float)
     for i in [0, 1]:
-        P[i, i+1] = np.clip(P[i, i+1] + boost, 0.001, 0.999)
-        P[i, i]   = np.clip(P[i, i]   - boost, 0.001, 0.999)
+        P[i, i+1] = P[i, i+1] + boost
+        P[i, i]   = P[i, i]   - boost
         P[i, :] = np.maximum(P[i, :], 0.001)
         P[i, :] /= P[i, :].sum()
     return P
