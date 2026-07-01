@@ -98,7 +98,7 @@ for xi, k in zip(xs, range(5)):
     ax3.plot(xi, ys[k], 'o', ms=6, color=BLUE_DARK if abs(slopes[k]/ses_se[k]) > 2 else GREY, zorder=4)
 ax3.set_xticks(xs); ax3.set_xticklabels(states)
 ax3.set_xlabel('achievement state'); ax3.set_ylabel(r'SES persistence slope $\hat\beta_k$')
-ax3.set_title('(C) significant at the tails, null in the middle', fontsize=9, pad=6)
+ax3.set_title('(C) significant at the tails, flat in the middle', fontsize=9, pad=6)
 ax3.set_xlim(.5, 5.5); ax3.spines[['top', 'right']].set_visible(False)
 fig.savefig("fig5_tails.png", dpi=200, bbox_inches='tight', facecolor='white')
 print("saved fig5_tails.png")
