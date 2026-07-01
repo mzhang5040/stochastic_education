@@ -148,17 +148,21 @@ for _ in range(400_000):
     for tol in keeps:
         if dev < tol:
             Lk = leverage_vec(Pm)
-            keeps[tol].append((int(np.argmax(Lk)) == 0, Pm[0, 0], Lk[0] - max(Lk[1:])))
+            runner = int(np.argmax(Lk[1:])) + 2   # state (2..5) with largest non-s1 leverage
+            keeps[tol].append((int(np.argmax(Lk)) == 0, Pm[0, 0], Lk[0] - max(Lk[1:]), runner))
 for tol in sorted(keeps, reverse=True):
     arr = keeps[tol]; n = len(arr)
-    s1 = sum(a for a, _, _ in arr); p11 = [p for _, p, _ in arr]
-    dd = np.array([d for _, _, d in arr])
+    s1 = sum(a for a, _, _, _ in arr); p11 = [p for _, p, _, _ in arr]
+    dd = np.array([d for _, _, d, _ in arr])
+    runners = [r for _, _, _, r in arr]
+    ru = {k: 100.0 * runners.count(k) / max(n, 1) for k in (2, 3, 4, 5)}
     # exact one-sided 95% lower bound on the s1-first proportion (k successes of n)
     lb = 0.05 ** (1.0 / n) if s1 == n and n > 0 else np.nan
     print(f"  tol<{tol}: kept {n:5d}  s1-first {100*s1/max(n,1):5.1f}%  "
           f"(95% one-sided LB {lb:.3f})  "
           f"p11 in [{min(p11):.3f},{max(p11):.3f}]  "
           f"margin min/med/max = {dd.min():+.3f}/{np.median(dd):+.3f}/{dd.max():+.3f}")
+    print(f"           runner-up: s2 {ru[2]:.0f}%  s3 {ru[3]:.0f}%  s4 {ru[4]:.0f}%  s5 {ru[5]:.0f}%")
 
 # === Sec 6  tutoring sweep =================================================
 print("\n" + "=" * 66)
