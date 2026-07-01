@@ -153,7 +153,10 @@ for tol in sorted(keeps, reverse=True):
     arr = keeps[tol]; n = len(arr)
     s1 = sum(a for a, _, _ in arr); p11 = [p for _, p, _ in arr]
     dd = np.array([d for _, _, d in arr])
+    # exact one-sided 95% lower bound on the s1-first proportion (k successes of n)
+    lb = 0.05 ** (1.0 / n) if s1 == n and n > 0 else np.nan
     print(f"  tol<{tol}: kept {n:5d}  s1-first {100*s1/max(n,1):5.1f}%  "
+          f"(95% one-sided LB {lb:.3f})  "
           f"p11 in [{min(p11):.3f},{max(p11):.3f}]  "
           f"margin min/med/max = {dd.min():+.3f}/{np.median(dd):+.3f}/{dd.max():+.3f}")
 
