@@ -51,8 +51,8 @@ def cov_floor(income, perpupil, floor):
              m.ALPHA['perpupil']*(perpupil-m.C0['perpupil']))
     Q = P.copy().astype(float)
     for i in range(4):
-        Q[i, i+1] = np.clip(Q[i, i+1] + shift, floor, 0.999)
-        Q[i, i]   = np.clip(Q[i, i]   - shift, floor, 0.999)
+        Q[i, i+1] = Q[i, i+1] + shift
+        Q[i, i]   = Q[i, i]   - shift
         Q[i, :] = np.maximum(Q[i, :], floor); Q[i, :] /= Q[i, :].sum()
     return Q
 for fl in (0.0, 0.0001, 0.001, 0.005):
