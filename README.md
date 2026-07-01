@@ -1,5 +1,6 @@
 # stochastic_education
 
+
 ========================================================================
 A Markov-Chain Framework for Educational Achievement Mobility and
 Transition Sensitivity 
@@ -8,7 +9,6 @@ Transition Sensitivity
 Copyright: Michael Zhang
 
 Every numerical result and the figure in the paper are reproduced by exactly one of five scripts.
-
 ------------------------------------------------------------------------
 CONTENTS
 ------------------------------------------------------------------------
@@ -30,7 +30,10 @@ ecls_robustness.py   Sec 3.4.1 difference tests, complete-panel weight,
                      Sec 3.4.2 jump-size; Sec 3.4.3 threshold decomposition.
                      (imports ecls.py)
 
-figures.py           The paper's single figure -> fig5_tails.png  (\ref{fig:tails}).
+fig_model_leverage.py  Figure: 5-state schematic + leverage bars -> fig_model_leverage.png
+                     (imports model.py; no external data)   (\ref{fig:leverage}).
+
+figures.py           ECLS tails figure -> fig5_tails.png     (\ref{fig:tails}).
                      (imports ecls.py)
 
 ecls_k5_puf.csv      REQUIRED INPUT. Extract of the ECLS-K:2011 Kindergarten-
@@ -54,6 +57,7 @@ HOW TO RUN
   python model_robustness.py  # Sec 4.2-4.4, 5.3, 5.4, 6 sweeps  (~few min: 400k MC)
   python ecls.py              # Tables 1-2                   (needs the CSV)
   python ecls_robustness.py   # Sec 3.4.1-3.4.3
+  python fig_model_leverage.py # fig_model_leverage.png       (no CSV needed)
   python figures.py           # fig5_tails.png
 
 ------------------------------------------------------------------------
@@ -77,6 +81,13 @@ ecls_robustness    beta1-beta2=-0.456 (z-6.2); beta5-beta4=+0.486 (z+9.2);
                    decomposition +0.520 (n 10,970) / +0.117 (n 3,086) /
                    +0.092 (n 2,783).
 
-Every number cited in the paper is backed by one of these scripts and
-reproduces exactly.
+Every number cited in the paper is now backed by one of these scripts.
+
 ------------------------------------------------------------------------
+REMAINING (not code) BEFORE SUBMISSION
+------------------------------------------------------------------------
+
+- Fill the two placeholders in paper.tex: \email{...} and the GitHub URL.
+- Provide a mathematician/faculty SPONSOR letter (RHUMJ requirement).
+- Confirm paper.tex compiles with the official RHUMJ LaTeX class file.
+
