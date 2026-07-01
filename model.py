@@ -132,6 +132,13 @@ def leverage(P):
     return L, best, adjacent
 
 
+def mfpt_to_top(P):
+    """Mean first-passage times m_{i5} from transient states s1..s4 to s5
+    (expected steps to first reach the top state). Prop.: L_i = pi_i pi_5 m_i5."""
+    Q = np.asarray(P, float)[:4, :4]
+    return np.linalg.solve(np.eye(4) - Q, np.ones(4))
+
+
 # Calibrate once on import (silent); importers use model.P_base etc.
 P_base, pi_base, _CAL_DEV = calibrate()
 
@@ -142,7 +149,7 @@ def _main():
     pi_low, pi_high = stationary(P_low), stationary(P_high)
     pl, ph = p12yr(P_low), p12yr(P_high)
     base = pl[0]
-    Z, _ = fundamental_Z(P_base)
+    Z, pi = fundamental_Z(P_base)
     L, best, adj = leverage(P_base)
 
     print("=" * 66)
@@ -173,6 +180,11 @@ def _main():
     print(f"  s1 leads next state by {L[0]/np.sort(L)[-2]:.1f}x")
     print("  adjacent transfers: " +
           ", ".join(f"s{i+1}->s{i+2}={adj[i]:+.3f}" for i in range(4)))
+    mfpt = mfpt_to_top(P_base)
+    print("  mean first-passage m_i5 (s_i -> s5): " +
+          ", ".join(f"m{i+1}5={mfpt[i]:.1f}" for i in range(4)))
+    print("  Prop 1 check  L_i = pi_i*pi_5*m_i5 (i=1..4): " +
+          ", ".join(f"{pi[i]*pi[4]*mfpt[i]:+.3f}" for i in range(4)))
 
     print("\nSECTION 6 - policy simulation")
     P_S1 = apply_tutoring(P_low)
