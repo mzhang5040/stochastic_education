@@ -6,10 +6,12 @@ ceiling / per-state-slope figure (Sec 3.4), from ecls.py.
 
 Output: fig5_tails.png   (referenced as \ref{fig:tails} in the paper)
 
-Panels A/B use survey-weighted logistic curves with clustered bootstrap bands
-(children resampled) for VISUALIZATION ONLY; panel C uses the official JK2
-jackknife standard errors from ecls.py, which underlie every significance
-statement in the paper.
+All three panels use the same design-based uncertainty procedure: the survey-
+weighted logistic curve in panels A/B is a base-weight fit, and its pointwise
+band is the ECLS JK2 jackknife SE obtained from the 80 replicate weights with
+the wave-specific thresholds recomputed inside each replicate (the same
+procedure that produces the per-state intervals in panel C and every
+significance statement in the paper).
 
 Run:  python figures.py
 """
@@ -21,57 +23,59 @@ import matplotlib.gridspec as gridspec
 from scipy.special import expit
 import ecls as E
 
-np.random.seed(42)
 BLUE_DARK, BLUE_LIGHT, RED_MID, GREY = '#1a5276', '#aed6f1', '#c0392b', '#888780'
 plt.rcParams.update({'font.family': 'DejaVu Sans', 'axes.edgecolor': '#888780',
                      'axes.linewidth': 0.8})
 states = [r'$s_1$', r'$s_2$', r'$s_3$', r'$s_4$', r'$s_5$']
 
 df = E.load()
-thr = E.wave_thresholds(df, E.BASE)
-sc = {w: df[w].values for w in E.WAVES}
-ses = df['x12sesl'].values
-pos = np.isfinite(ses) & (df[E.BASE].values > 0)
 
-# transitions with childid (for clustered viz-only bands)
-F, T, S, W, CID = [], [], [], [], []
-for a, b in E.PAIRS:
-    m = np.isfinite(sc[E.WAVES[a]]) & np.isfinite(sc[E.WAVES[b]]) & pos
-    F.append(np.digitize(sc[E.WAVES[a]][m], thr[E.WAVES[a]][:4]))
-    T.append(np.digitize(sc[E.WAVES[b]][m], thr[E.WAVES[b]][:4]))
-    S.append(ses[m]); W.append(df[E.BASE].values[m]); CID.append(df['childid'].values[m])
-F, T, S, W, CID = map(np.concatenate, (F, T, S, W, CID))
-lo, hi = E.wquantile(ses[pos], df[E.BASE].values[pos], [1/3, 2/3])
-ses_lo, ses_hi = S[S <= lo].mean(), S[S >= hi].mean()
+# Base-weight and 80 replicate transition sets (thresholds recomputed per weight),
+# built once and shared by both tail panels.
+T0 = E.transitions_for_weight(df, E.BASE)
+rep_T = [E.transitions_for_weight(df, r) for r in E.REPS]
+
+# tercile SES group means (base-weighted) for the red dashed markers
+lo, hi = E.wquantile(T0["ses"].values, T0["w"].values, [1/3, 2/3])
+ses_lo = T0.loc[T0["ses"] <= lo, "ses"].mean()
+ses_hi = T0.loc[T0["ses"] >= hi, "ses"].mean()
 
 # panel C: per-state JK2 slopes (reuse ecls)
 slopes = {k: E.state_slope(df, E.BASE, k) for k in range(5)}
 ses_se = {k: E.jk2_se(slopes[k], [E.state_slope(df, r, k) for r in E.REPS]) for k in range(5)}
 
-
-def curve_and_band(state_idx):
-    a = F == state_idx
-    y = (T[a] == state_idx).astype(float); x = S[a]; w = W[a]; cid = CID[a]
-    b = E.wlogit(y, np.column_stack([np.ones_like(x), x]), w)
-    xr = np.linspace(-2.5, 2.0, 160)
-    uniq = np.unique(cid); idx = {c: np.where(cid == c)[0] for c in uniq}
-    boot = np.empty((200, len(xr)))
-    for i in range(200):
-        pick = np.concatenate([idx[c] for c in np.random.choice(uniq, uniq.size, replace=True)])
-        bb = E.wlogit(y[pick], np.column_stack([np.ones(pick.size), x[pick]]), w[pick])
-        boot[i] = expit(bb[0] + bb[1] * xr)
-    return b, xr, expit(b[0] + b[1] * xr), np.percentile(boot, 2.5, 0), np.percentile(boot, 97.5, 0), int(a.sum())
+XR = np.linspace(-2.5, 2.0, 160)
 
 
-bA, xr, mA, loA, hiA, nA = curve_and_band(0)
-bB, _, mB, loB, hiB, nB = curve_and_band(4)
+def _fit(T, k):
+    d = T[T["fr"] == k]
+    return E.wlogit((d["to"] == k).values.astype(float),
+                    np.column_stack([np.ones(len(d)), d["ses"].values]),
+                    d["w"].values), int(len(d))
+
+
+def jk2_curve(k):
+    """Base-weight logistic curve for staying in s_k, with a pointwise JK2 band."""
+    b0, n = _fit(T0, k)
+    p0 = expit(b0[0] + b0[1] * XR)
+    acc = np.zeros_like(XR)
+    for Tr in rep_T:
+        br, _ = _fit(Tr, k)
+        acc += (expit(br[0] + br[1] * XR) - p0) ** 2
+    se = np.sqrt(acc)                      # JK2 pointwise standard error
+    return b0, p0, np.clip(p0 - 1.96 * se, 0, 1), np.clip(p0 + 1.96 * se, 0, 1), n
+
+
+bA, mA, loA, hiA, nA = jk2_curve(0)
+bB, mB, loB, hiB, nB = jk2_curve(4)
 
 fig = plt.figure(figsize=(12, 3.7))
 gs = gridspec.GridSpec(1, 3, figure=fig, wspace=.34)
 
+
 def panel(ax, m_, lo_, hi_, b, title, ylab, ylim):
-    ax.fill_between(xr, lo_, hi_, color=BLUE_LIGHT, alpha=.55)
-    ax.plot(xr, m_, color=BLUE_DARK, lw=2)
+    ax.fill_between(XR, lo_, hi_, color=BLUE_LIGHT, alpha=.55)
+    ax.plot(XR, m_, color=BLUE_DARK, lw=2)
     for xs, lbl, ha in [(ses_lo, 'Low-SES', 'right'), (ses_hi, 'High-SES', 'left')]:
         yp = expit(b[0] + b[1] * xs)
         ax.axvline(xs, color=RED_MID, lw=1, ls='--', alpha=.7)
@@ -81,6 +85,7 @@ def panel(ax, m_, lo_, hi_, b, title, ylab, ylim):
     ax.set_xlabel('SES composite'); ax.set_ylabel(ylab)
     ax.set_title(title, fontsize=9, pad=6); ax.set_ylim(*ylim); ax.set_xlim(-2.7, 2.2)
     ax.spines[['top', 'right']].set_visible(False)
+
 
 zA, zB = slopes[0] / ses_se[0], slopes[4] / ses_se[4]
 panel(fig.add_subplot(gs[0]), mA, loA, hiA, bA,
@@ -101,4 +106,5 @@ ax3.set_xlabel('achievement state'); ax3.set_ylabel(r'SES persistence slope $\ha
 ax3.set_title('(C) significant at the tails, flat in the middle', fontsize=9, pad=6)
 ax3.set_xlim(.5, 5.5); ax3.spines[['top', 'right']].set_visible(False)
 fig.savefig("fig5_tails.png", dpi=200, bbox_inches='tight', facecolor='white')
-print("saved fig5_tails.png")
+print(f"saved fig5_tails.png   nA={nA:,}  nB={nB:,}  "
+      f"betaA={slopes[0]:+.3f}(z{zA:+.1f})  betaB={slopes[4]:+.3f}(z{zB:+.1f})")
