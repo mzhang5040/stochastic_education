@@ -139,6 +139,35 @@ def mfpt_to_top(P):
     return np.linalg.solve(np.eye(4) - Q, np.ones(4))
 
 
+def worked_example():
+    """Three-state illustration (Section 5.2): fundamental matrix Z, mean first-
+    passage to the target, unrestricted leverage L_i^(t), the adjacent-leverage
+    corollary A_i=pi_i*pi_t*(m_it-m_{i+1,t}), and a finite-difference check of the
+    constrained-sensitivity formula. Target is the top state s3."""
+    P = np.array([[0.85, 0.12, 0.03],
+                  [0.10, 0.75, 0.15],
+                  [0.08, 0.22, 0.70]])
+    t = 2
+    Z, pi = fundamental_Z(P)
+    m = np.array([(Z[t, t] - Z[i, t]) / pi[t] for i in range(3)])      # m_it (m_tt=0)
+    L = [max(pi[i] * (Z[j, t] - Z[i, t]) for j in range(3) if j != i) for i in range(3)]
+    A1 = pi[0] * pi[t] * (m[0] - m[1])          # Cor: i=1, i+1=2 != target
+    L2 = pi[1] * pi[t] * m[1]                    # i=2 borders target -> full leverage
+    eps = 1e-6
+    Pe = P.copy(); Pe[0, 0] -= eps; Pe[0, 2] += eps
+    fd = (stationary(Pe)[t] - pi[t]) / eps
+    an = pi[0] * (Z[2, t] - Z[0, t])
+    print("\nSECTION 5.2 - three-state worked example (target s3)")
+    print("  pi      = " + ", ".join(f"{v:.4f}" for v in pi))
+    print("  Z =\n" + "\n".join("    " + "  ".join(f"{Z[i, j]:+.4f}" for j in range(3))
+                                 for i in range(3)))
+    print(f"  m_i3    = m13={m[0]:.2f}, m23={m[1]:.2f}")
+    print("  L_i^(3) = " + ", ".join(f"L{i+1}={L[i]:+.3f}" for i in range(3)))
+    print(f"  adjacent: s1->s2  A1=pi1*pi3*(m13-m23)={A1:+.4f};  "
+          f"s2->s3 is direct-to-target, full leverage L2={L2:+.3f}")
+    print(f"  Eq.(5) finite-diff s1->s3: numeric={fd:+.5f}  analytic={an:+.5f}")
+
+
 # Calibrate once on import (silent); importers use model.P_base etc.
 P_base, pi_base, _CAL_DEV = calibrate()
 
@@ -185,6 +214,11 @@ def _main():
           ", ".join(f"m{i+1}5={mfpt[i]:.1f}" for i in range(4)))
     print("  Prop 1 check  L_i = pi_i*pi_5*m_i5 (i=1..4): " +
           ", ".join(f"{pi[i]*pi[4]*mfpt[i]:+.3f}" for i in range(4)))
+    adj_cor = [pi[i]*pi[4]*(mfpt[i]-mfpt[i+1]) for i in range(3)] + [pi[3]*pi[4]*mfpt[3]]
+    print("  Cor 2 check A_i (adjacent) = pi_i*pi_5*(m_i5-m_{i+1,5}), A_4=pi_4*pi_5*m_45: " +
+          ", ".join(f"{a:+.3f}" for a in adj_cor))
+
+    worked_example()
 
     print("\nSECTION 6 - policy simulation")
     P_S1 = apply_tutoring(P_low)
