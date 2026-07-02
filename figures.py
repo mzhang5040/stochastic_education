@@ -1,13 +1,14 @@
 """
 figures.py
 ==========
-Generates the paper's single figure, the ECLS-K:2011 sticky-floor / sticky-
-ceiling / per-state-slope figure (Sec 3.4), from ecls.py.
+Generates the ECLS-K:2011 sticky-floor / sticky-ceiling / per-state-slope
+figure (Figure 1; Sec 3.3), from ecls.py. The model leverage figure (Figure 2)
+is produced separately by fig_model_leverage.py.
 
 Output: fig5_tails.png   (referenced as \ref{fig:tails} in the paper)
 
 All three panels use the same design-based uncertainty procedure: the survey-
-weighted logistic curve in panels A/B is a base-weight fit, and its pointwise
+weighted logistic curve in panels A/B is a complete-panel-weight fit, and its pointwise
 band is the ECLS JK2 jackknife SE obtained from the 80 replicate weights with
 the wave-specific thresholds recomputed inside each replicate (the same
 procedure that produces the per-state intervals in panel C and every
@@ -32,8 +33,8 @@ df = E.load()
 
 # Base-weight and 80 replicate transition sets (thresholds recomputed per weight),
 # built once and shared by both tail panels.
-T0 = E.transitions_for_weight(df, E.BASE)
-rep_T = [E.transitions_for_weight(df, r) for r in E.REPS]
+T0 = E.transitions_for_weight(df, E.PRIMARY)
+rep_T = [E.transitions_for_weight(df, r) for r in E.PRIMARY_REPS]
 
 # tercile SES group means (base-weighted) for the red dashed markers
 lo, hi = E.wquantile(T0["ses"].values, T0["w"].values, [1/3, 2/3])
@@ -41,8 +42,8 @@ ses_lo = T0.loc[T0["ses"] <= lo, "ses"].mean()
 ses_hi = T0.loc[T0["ses"] >= hi, "ses"].mean()
 
 # panel C: per-state JK2 slopes (reuse ecls)
-slopes = {k: E.state_slope(df, E.BASE, k) for k in range(5)}
-ses_se = {k: E.jk2_se(slopes[k], [E.state_slope(df, r, k) for r in E.REPS]) for k in range(5)}
+slopes = {k: E.state_slope(df, E.PRIMARY, k) for k in range(5)}
+ses_se = {k: E.jk2_se(slopes[k], [E.state_slope(df, r, k) for r in E.PRIMARY_REPS]) for k in range(5)}
 
 XR = np.linspace(-2.5, 2.0, 160)
 

@@ -1,0 +1,5 @@
+# SHA-256 checksums for the ECLS-K:2011 extract behind this paper.
+# Verify with either:
+#     python verify_ecls.py
+#     sha256sum -c CHECKSUMS.txt
+b033e1397ef3db3bf2f885417d31540585520de0fa178cc7b2dbfb7408086819  ecls_k5_puf.csv

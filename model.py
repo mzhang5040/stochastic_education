@@ -10,18 +10,23 @@ Importing the module calibrates once and exposes `P_base`, `pi_base`.
 
 Run directly to print:
     Table 3  baseline transition matrix P
-    Table 4  stationary distributions by resource stratum
-    Table 5  12-step top-state first-hitting probabilities
+    Sec 4.2  stationary distributions by resource stratum
+    Table 4  12-step top-state first-hitting probabilities
     Sec 5.2  fundamental matrix Z, leverage L_i, adjacent transfers
     Sec 6    policy simulation table
 
 Robustness checks (floor sweep, Monte Carlo, Proposition 1, tutoring sweep,
 occupancy-vs-first-hitting, resource decomposition) live in model_robustness.py.
 """
+import json
+import os
+import sys
 import numpy as np
 from scipy.optimize import minimize, differential_evolution
 
 np.random.seed(0)
+_DIAG_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           "calibrated_diagonal.json")
 
 # NAEP 2022 Grade-8 math, all students: 38% Below Basic, 36% Basic (split
 # equally into s2/s3), 19% Proficient, 7% Advanced.
@@ -35,13 +40,13 @@ RHO, DELTA = 0.7, 0.4
 # Resource-stratum and policy covariate values (Sections 4, 6)
 LOW_RES  = dict(income=20, perpupil=9)
 HIGH_RES = dict(income=80, perpupil=18)
-PP_EQUITY = 15.591   # funding-equity scenario raises per-pupil to the national mean
+PP_EQUITY = 15.591   # spending-equalization scenario raises per-pupil to the mean
 
 
 def build_P(params):
     """Transition matrix from the five diagonal persistences (Eq. 1)."""
     n = 5
-    p_diag = np.clip(params, 0.50, 0.995)
+    p_diag = np.clip(params, 0.60, 0.995)   # matches the DE bounds and the paper
     P = np.zeros((n, n))
     for i in range(n):
         P[i, i] = p_diag[i]
@@ -59,23 +64,42 @@ def build_P(params):
 
 
 def stationary(P):
-    ev, evec = np.linalg.eig(P.T)
-    pi = np.abs(np.real(evec[:, np.argmin(np.abs(ev - 1.0))]))
-    return pi / pi.sum()
+    """Stationary distribution via the constrained linear system (pi P = pi,
+    sum pi = 1), with an explicit residual/positivity check. Replaces taking
+    |Re(eigenvector)|, which can silently mask a sign or selection problem."""
+    n = P.shape[0]
+    A = np.vstack([(P.T - np.eye(n))[:-1], np.ones(n)])
+    b = np.zeros(n); b[-1] = 1.0
+    pi = np.linalg.lstsq(A, b, rcond=None)[0]
+    if np.max(np.abs(pi @ P - pi)) > 1e-9 or pi.min() <= 0:
+        raise np.linalg.LinAlgError("stationary distribution failed verification")
+    return pi
 
 
-def calibrate(target=NAEP_TARGET):
+def calibrate(target=NAEP_TARGET, recalibrate=False):
+    """Fit the five diagonal persistences to the NAEP target. The fitted
+    diagonal is cached to calibrated_diagonal.json so importers pay the global
+    optimization only once; pass recalibrate=True (or run with --recalibrate) to
+    force a fresh fit. The refined solution is clipped and asserted to lie in
+    the stated bounds [0.60, 0.995]."""
+    if not recalibrate and os.path.exists(_DIAG_CACHE):
+        x = np.array(json.load(open(_DIAG_CACHE))["diagonal"])
+        P = build_P(x)
+        return P, stationary(P), float(np.max(np.abs(stationary(P) - target)))
     loss = lambda p: np.sum((stationary(build_P(p)) - target) ** 2)
     r = differential_evolution(loss, [(0.60, 0.995)] * 5, seed=42,
-                               maxiter=3000, tol=1e-12, workers=1)
+                               maxiter=300, tol=1e-12, workers=1)
     r = minimize(loss, r.x, method='Nelder-Mead',
-                 options={'maxiter': 100000, 'xatol': 1e-12, 'fatol': 1e-12})
-    P = build_P(r.x)
-    return P, stationary(P), np.max(np.abs(stationary(P) - target))
+                 options={'maxiter': 100000, 'xatol': 1e-12, 'fatol': 1e-14})
+    x = np.clip(r.x, 0.60, 0.995)
+    assert np.all((x >= 0.60) & (x <= 0.995)), "fitted diagonal outside [0.60, 0.995]"
+    json.dump({"diagonal": x.tolist()}, open(_DIAG_CACHE, "w"), indent=2)
+    P = build_P(x)
+    return P, stationary(P), float(np.max(np.abs(stationary(P) - target)))
 
 
 def apply_covariates(P_base, income, perpupil):
-    """Income + funding shift on adjacent upward transitions (Eq. 2): the shift
+    """Income + expenditure shift on adjacent upward transitions (Eq. 2): the shift
     is moved between p_{i,i+1} and p_ii, then every entry is floored at 0.001 and
     the row renormalized (steps iii-iv). The 0.001 floor is the only imposed bound."""
     shift = (ALPHA['income']   * (income   - C0['income']) +
@@ -168,7 +192,7 @@ def worked_example():
     print(f"  Eq.(5) finite-diff s1->s3: numeric={fd:+.5f}  analytic={an:+.5f}")
 
 
-# Calibrate once on import (silent); importers use model.P_base etc.
+# Calibrate once on import (cached); importers use model.P_base etc.
 P_base, pi_base, _CAL_DEV = calibrate()
 
 
@@ -190,13 +214,13 @@ def _main():
     for i in range(5):
         print(f"  s{i+1}   " + "  ".join(f"{v:.3f}" for v in P_base[i]))
 
-    print("\nTABLE 4 - stationary distributions by resource stratum")
+    print("\nSECTION 4.2 - stationary distributions by resource stratum")
     print(f"  {'state':<6}{'low':>10}{'high':>10}{'gap':>10}")
     for i in range(5):
         g = (pi_low[i] - pi_high[i]) * 100
         print(f"  pi{i+1}  {pi_low[i]*100:>9.1f}%{pi_high[i]*100:>9.1f}%{g:>+8.1f}pp")
 
-    print("\nTABLE 5 - 12-step top-state first-hitting probabilities")
+    print("\nTABLE 4 - 12-step top-state first-hitting probabilities")
     print(f"  {'start':<6}{'low':>10}{'high':>10}{'ratio':>8}")
     for i in range(4):
         print(f"  s{i+1}   {pl[i]*100:>9.1f}%{ph[i]*100:>9.1f}%{ph[i]/pl[i]:>7.2f}x")
@@ -212,10 +236,10 @@ def _main():
     mfpt = mfpt_to_top(P_base)
     print("  mean first-passage m_i5 (s_i -> s5): " +
           ", ".join(f"m{i+1}5={mfpt[i]:.1f}" for i in range(4)))
-    print("  Prop 1 check  L_i = pi_i*pi_5*m_i5 (i=1..4): " +
+    print("  Prop 5.1 check  L_i = pi_i*pi_5*m_i5 (i=1..4): " +
           ", ".join(f"{pi[i]*pi[4]*mfpt[i]:+.3f}" for i in range(4)))
     adj_cor = [pi[i]*pi[4]*(mfpt[i]-mfpt[i+1]) for i in range(3)] + [pi[3]*pi[4]*mfpt[3]]
-    print("  Cor 2 check A_i (adjacent) = pi_i*pi_5*(m_i5-m_{i+1,5}), A_4=pi_4*pi_5*m_45: " +
+    print("  Cor 5.3 check A_i (adjacent) = pi_i*pi_5*(m_i5-m_{i+1,5}), A_4=pi_4*pi_5*m_45: " +
           ", ".join(f"{a:+.3f}" for a in adj_cor))
 
     worked_example()
@@ -228,7 +252,7 @@ def _main():
     for name, Psc in [('Baseline (low-resource)', P_low),
                       ('Reference (high-resource)', P_high),
                       ('S1: Tutoring', P_S1),
-                      ('S2: Funding equity', P_S2),
+                      ('S2: Spending equalization', P_S2),
                       ('S3: Combined', P_S3)]:
         pr, pisc = p12yr(Psc), stationary(Psc)
         gain = '---' if 'resource' in name else f"{(pr[0]-base)/base*100:+.0f}%"
@@ -236,4 +260,6 @@ def _main():
 
 
 if __name__ == "__main__":
+    if "--recalibrate" in sys.argv:
+        P_base, pi_base, _CAL_DEV = calibrate(recalibrate=True)
     _main()

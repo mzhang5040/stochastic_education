@@ -3,7 +3,7 @@ ecls.py
 =======
 ECLS-K:2011 empirical core (importable) and the paper's headline empirical
 results, using the method the paper describes throughout: within-wave score
-thresholds, base-year survey weighting, and JK2 jackknife standard errors with
+thresholds, complete-panel survey weighting, and JK2 jackknife standard errors with
 the thresholds re-estimated inside each replicate.
 
 As a library it exposes:
@@ -14,7 +14,7 @@ Run directly to print:
     Table 1  SES-stratified transition matrices (with positive-weight n's)
     Table 2  per-state SES persistence slopes with JK2 jackknife SEs
 
-Robustness (cross-state difference tests, complete-panel weight, jump-size,
+Robustness (cross-state difference tests, base-year weight, jump-size,
 threshold decomposition) lives in ecls_robustness.py.
 
 Input: ecls_k5_puf.csv  (ECLS-K:2011 K-5 public-use extract, Appendix A vars)
@@ -31,6 +31,10 @@ BASE  = "w1c0"
 REPS  = [f"w1c{r}" for r in range(1, 81)]             # 80 base-year JK2 replicates
 PANEL = "w9c29p_9a0"                                   # complete-panel weight
 PANEL_REPS = [f"w9c29p_9a{r}" for r in range(1, 81)]
+# Primary inferential weight: complete-panel (K-5). Base-year is the broader-
+# cohort sensitivity weight (see ecls_robustness.py).
+PRIMARY, PRIMARY_REPS = PANEL, PANEL_REPS
+SENSITIVITY, SENSITIVITY_REPS = BASE, REPS
 PCTS = [0.25, 0.40, 0.60, 0.80]
 
 
@@ -61,7 +65,7 @@ def build_transitions(df, thr, weightcol, require_pos=True):
     """
     One row per consecutive-wave transition (valid scores + SES). By default
     restricts to positive `weightcol` (the inferential sample); pass
-    require_pos=False for the unweighted threshold-count samples of Sec 3.4.3.
+    require_pos=False for the unweighted threshold-count samples of Sec 3.3.3.
     Column `iv` is the grade-interval index (for wave-pair fixed effects).
     """
     parts = []
@@ -118,9 +122,9 @@ def state_slope(df, weightcol, k):
 
 # ---------------------------------------------------------------------------
 def table1(df):
-    ms = df["x12sesl"].notna() & (df[BASE] > 0)
-    t_lo, t_hi = wquantile(df.loc[ms, "x12sesl"].values, df.loc[ms, BASE].values, [1/3, 2/3])
-    T = transitions_for_weight(df, BASE)
+    ms = df["x12sesl"].notna() & (df[PRIMARY] > 0)
+    t_lo, t_hi = wquantile(df.loc[ms, "x12sesl"].values, df.loc[ms, PRIMARY].values, [1/3, 2/3])
+    T = transitions_for_weight(df, PRIMARY)
     T["grp"] = np.where(T["ses"] <= t_lo, "low", np.where(T["ses"] >= t_hi, "high", "mid"))
     print(f"Transitions: {len(T):,}  (low {int((T.grp=='low').sum()):,} / "
           f"high {int((T.grp=='high').sum()):,})\n")
@@ -139,8 +143,8 @@ def table1(df):
 def table2(df):
     print("\nTABLE 2 - per-state SES persistence slopes (weighted logit, JK2 SE)")
     print("  state    beta1     JK SE      z")
-    rep_T = [transitions_for_weight(df, r) for r in REPS]   # per-replicate thresholds
-    T0 = transitions_for_weight(df, BASE)
+    rep_T = [transitions_for_weight(df, r) for r in PRIMARY_REPS]   # per-replicate thresholds
+    T0 = transitions_for_weight(df, PRIMARY)
     for k in range(5):
         d = T0[T0["fr"] == k]
         b0 = wlogit_slope((d["to"] == k).values.astype(float), d["ses"].values, d["w"].values)

@@ -4,11 +4,11 @@ model_robustness.py
 Robustness checks for the model side. Imports the calibrated chain from model.py
 and reproduces every non-headline model claim, each computed once:
 
-    Sec 4.2  resource decomposition (income vs funding channel)
+    Sec 4.2  resource decomposition (income vs expenditure channel)
     Sec 4.3  probability-floor sensitivity of the resource gap
     Sec 4.4  first-hitting vs year-12 occupancy
     Sec 5.3  Monte-Carlo leverage robustness across NAEP-consistent matrices
-    Sec 5.4  Proposition 1 (one-parameter family, Z(c)=(1/c)A#+1.pi, c-sweep),
+    Sec 5.4  Proposition 5.4 (one-parameter family, Z(c)=(1/c)A#+1.pi, c-sweep),
              the (rho, delta) kernel grid, and the shared-persistence restriction
     Sec 6    tutoring-boost sweep
 
@@ -32,11 +32,11 @@ print("=" * 66)
 print("SEC 4.2 - resource decomposition of the pi_1 gap")
 print("=" * 66)
 print(f"  income shift  alpha_inc*60 = {m.ALPHA['income']*60:+.4f}")
-print(f"  funding shift alpha_pp*9   = {m.ALPHA['perpupil']*9:+.4f}"
+print(f"  expenditure shift alpha_pp*9 = {m.ALPHA['perpupil']*9:+.4f}"
       f"   (ratio ~ {m.ALPHA['income']*60/(m.ALPHA['perpupil']*9):.0f}:1)")
 for label, lo, hi in [
     ("income only (20 vs 80)",  dict(income=20, perpupil=15.591), dict(income=80, perpupil=15.591)),
-    ("funding only ($9k vs $18k)", dict(income=50, perpupil=9),   dict(income=50, perpupil=18)),
+    ("expenditure only ($9k vs $18k)", dict(income=50, perpupil=9), dict(income=50, perpupil=18)),
     ("both (low- vs high-resource)", m.LOW_RES, m.HIGH_RES)]:
     a = m.stationary(m.apply_covariates(P, **lo))[0] * 100
     b = m.stationary(m.apply_covariates(P, **hi))[0] * 100
@@ -72,9 +72,9 @@ print(f"  {'start':<6}{'hit low':>9}{'hit high':>10}{'occ low':>10}{'occ high':>
 for i in range(4):
     print(f"  s{i+1}   {hl[i]*100:>8.1f}%{hh[i]*100:>9.1f}%{ol[i]*100:>9.1f}%{oh[i]*100:>9.1f}%")
 
-# === Sec 5.4  Proposition 1 ================================================
+# === Sec 5.4  Proposition 5.4 ===============================================
 print("\n" + "=" * 66)
-print("SEC 5.4 - Proposition 1: one-parameter family and invariant ranking")
+print("SEC 5.4 - Proposition 5.4: one-parameter family and invariant ranking")
 print("=" * 66)
 D = 1 - np.diag(P)
 M = np.array([[0 if j == i else P[i, j] / D[i] for j in range(5)] for i in range(5)])
